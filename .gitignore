@@ -1,0 +1,34 @@
+# ==========================================
+# CodeMind: Local Ingestion Data (CRITICAL)
+# ==========================================
+# Prevents uploading massive vector databases and third-party code
+data/
+chroma/
+graph.json
+repos/
+cloned_repos/
+
+# ==========================================
+# Python Environments & Cache
+# ==========================================
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# Streamlit & Secrets
+# ==========================================
+.env
+.streamlit/secrets.toml
+
+# ==========================================
+# IDE & OS Artifacts
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
