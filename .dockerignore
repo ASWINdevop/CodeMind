@@ -1,0 +1,16 @@
+# Block Python Virtual Environments
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Block Local Ingestion Data (Docker Compose will mount these dynamically later)
+data/
+chroma/
+repos/
+
+# Block Secrets and Git History
+.env
+.git/
+.gitignore

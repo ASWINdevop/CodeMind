@@ -1,11 +1,19 @@
-# ==========================================
-# CodeMind: Local Ingestion Data (CRITICAL)
-# ==========================================
-# Prevents uploading massive vector databases and third-party code
-data/
-chroma/
+
+# Ignore all contents in data, but keep the folder
+data/*
+!data/.gitkeep
+
+# Ignore all contents in chroma, but keep the folder
+chroma/*
+
+
+# Ignore all contents in repos, but keep the folder
+repos/*
+!repos/.gitkeep
+
+# Ignore specific root/data files just in case
+query_cache.json
 graph.json
-repos/
 cloned_repos/
 
 # ==========================================
