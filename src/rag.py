@@ -87,9 +87,25 @@ class CodeMindAgent:
             return f"Error executing READ_FILE: {e}"
 
     def ask(self, query: str, repo_filter: str = None):
-        """Assembles the prompt and executes an autonomous ReAct loop."""
+        """Assembles the prompt and executes an autonomous ReAct loop with full telemetry."""
         import re
+        import time # NEW: For nanosecond precision timing
+
+        telemetry = {
+            "retrieval_latency_sec": 0.0,
+            "llm_reasoning_sec": 0.0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_latency_sec": 0.0,
+            "react_iterations": 0
+        }
+        
+        t_start_total = time.perf_counter()
+
+        # 1. MEASURE RETRIEVAL LATENCY (Vector + Graph Expansion)
+        t0_retrieval = time.perf_counter()
         topology, context, repos_involved, context_dict = self.retrieve_context(query, repo_filter=repo_filter)
+        telemetry["retrieval_latency_sec"] = round(time.perf_counter() - t0_retrieval, 3)
         
         base_docs = ""
         for repo in repos_involved:
@@ -125,38 +141,44 @@ Execute this reasoning chain:
 2. If you lack critical source code, output the ACTION string to fetch the file.
 3. If you have enough information, output your Final Answer."""
 
-        max_steps = 3 # Hard boundary to prevent infinite loops
+        max_steps = 3 
         current_prompt = prompt
         
         for step in range(max_steps):
+            telemetry["react_iterations"] += 1
+            
+            # 2. MEASURE LLM GENERATION LATENCY
+            t0_llm = time.perf_counter()
             response = self.client.models.generate_content(
                 model=GEMINI_MODEL_NAME,
                 contents=current_prompt,
             )
+            telemetry["llm_reasoning_sec"] += (time.perf_counter() - t0_llm)
+            
+            # 3. EXTRACT TOKEN USAGE
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                telemetry["prompt_tokens"] += getattr(response.usage_metadata, 'prompt_token_count', 0)
+                telemetry["completion_tokens"] += getattr(response.usage_metadata, 'candidates_token_count', 0)
+
             reply = response.text
             
-            # Check if the AI is trying to trigger the tool
             action_match = re.search(r'\[ACTION:\s*READ_FILE\s*\|\s*INPUT:\s*(.+?)\]', reply)
             
             if action_match:
                 file_id = action_match.group(1).strip()
-                # Print to your IDE terminal so you can watch the AI "think" in real-time
                 print(f"\n[ReAct Triggered]: LLM requested file -> {file_id}") 
-                
-                # 1. Execute the local file reading tool
                 observation = self.read_file_content(file_id)
-                
-                # 2. Inject the pulled code into the dictionary so your UI Citation Viewer can display it
                 context_dict[file_id] = observation
-                
-                # 3. Append the new data to the prompt and force the AI to loop again
                 current_prompt += f"\n\n{reply}\n\n[OBSERVATION from {file_id}]:\n{observation}\n\nNow continue your analysis."
             else:
-                # No action requested, the AI has deduced the final answer
-                return {"answer": reply, "references": context_dict}
+                telemetry["llm_reasoning_sec"] = round(telemetry["llm_reasoning_sec"], 3)
+                telemetry["total_latency_sec"] = round(time.perf_counter() - t_start_total, 3)
+                # RETURN TELEMETRY ALONGSIDE THE ANSWER
+                return {"answer": reply, "references": context_dict, "telemetry": telemetry}
                 
-        # Fallback if the AI gets stuck in a loop
-        return {"answer": reply + "\n\n[System Warning: Autonomous reasoning loop reached max iterations.]", "references": context_dict}
+        telemetry["llm_reasoning_sec"] = round(telemetry["llm_reasoning_sec"], 3)
+        telemetry["total_latency_sec"] = round(time.perf_counter() - t_start_total, 3)
+        return {"answer": reply + "\n\n[System Warning: Autonomous reasoning loop reached max iterations.]", "references": context_dict, "telemetry": telemetry}
     
 if __name__ == "__main__":
     agent = CodeMindAgent()

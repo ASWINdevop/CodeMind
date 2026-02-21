@@ -42,6 +42,13 @@ st.markdown("""
         .stApp {
             background: linear-gradient(135deg, #d8f3f0 0%, #e9f7f6 35%, #f8fbfb 100%);
         }
+        /* --- FIX METRICS GAP (OVERRIDE 75vh INHERITANCE) --- */
+        [data-testid="stSidebar"] [data-testid="stColumn"],
+        [data-testid="stExpander"] [data-testid="stColumn"] {
+            height: auto !important;
+            max-height: none !important;
+            overflow-y: visible !important;
+        }
         /* ===== STATIC CODE VIEWER PANEL ===== */
 /* RIGHT COLUMN - STATIC CODE VIEWER PANEL */
 [data-testid="stColumn"]:nth-child(2) 
@@ -337,6 +344,57 @@ def main():
 
         st.divider()
 
+        # --- NEW: SESSION ANALYTICS ENGINE ---
+        st.subheader(" Session Analytics")
+        
+        valid_responses = 0
+        sum_total_latency = 0.0
+        sum_retrieval_latency = 0.0
+        sum_react_loops = 0
+        sum_tokens_in = 0
+        sum_tokens_out = 0
+
+        for msg in st.session_state.messages:
+            if msg.get("role") == "assistant" and msg.get("telemetry"):
+                # Mathematical Filter: Ignore loops that hit max iterations
+                if "[System Warning: Autonomous reasoning loop reached max iterations.]" not in msg.get("content", ""):
+                    tel = msg["telemetry"]
+                    valid_responses += 1
+                    sum_total_latency += tel.get("total_latency_sec", 0)
+                    sum_retrieval_latency += tel.get("retrieval_latency_sec", 0)
+                    sum_react_loops += tel.get("react_iterations", 0)
+                    sum_tokens_in += tel.get("prompt_tokens", 0)
+                    sum_tokens_out += tel.get("completion_tokens", 0)
+
+        if valid_responses > 0:
+            avg_total_latency = round(sum_total_latency / valid_responses, 2)
+            avg_retrieval = round(sum_retrieval_latency / valid_responses, 2)
+            avg_loops = round(sum_react_loops / valid_responses, 1)
+            avg_tokens_in = int(sum_tokens_in / valid_responses)
+            avg_tokens_out = int(sum_tokens_out / valid_responses)
+            
+            # Calculate total burned tokens across all successful queries
+            total_tokens_burned = sum_tokens_in + sum_tokens_out
+
+            col1, col2 = st.columns(2)
+            col1.metric("Avg Latency", f"{avg_total_latency}s")
+            col2.metric("Avg Retrieval", f"{avg_retrieval}s")
+            
+            col3, col4 = st.columns(2)
+            col3.metric("Avg ReAct Loops", f"{avg_loops}")
+            col4.metric("Avg Tokens (In/Out)", f"{avg_tokens_in} / {avg_tokens_out}")
+            
+            # Display Total Tokens
+            st.metric("Total Tokens Burned", f"{total_tokens_burned:,}")
+            
+            st.caption(f"Calculated from {valid_responses} successful queries.")
+        else:
+            st.caption("No valid telemetry data yet.")
+
+    
+        st.divider()
+        # --- END SESSION ANALYTICS ENGINE ---
+
         with st.expander("🛠️ Knowledge Ingestion Panel", expanded=not bool(available_cloned_repos)):
             github_user = st.text_input("GitHub Username", value="ASWINdevop")
             
@@ -412,7 +470,17 @@ def main():
                         )
 
                         st.markdown(msg["content"])
-
+                        
+                        # NEW: PERSISTENT TELEMETRY RENDERER
+                        # NEW: PERSISTENT TELEMETRY RENDERER
+                        if role == "assistant" and "telemetry" in msg and msg["telemetry"]:
+                            tel = msg["telemetry"]
+                            with st.expander("Performance Telemetry"):
+                                met1, met2, met3, met4 = st.columns(4)
+                                met1.metric("Total Latency", f"{tel.get('total_latency_sec', 0)}s")
+                                met2.metric("Retrieval", f"{tel.get('retrieval_latency_sec', 0)}s")
+                                met3.metric("ReAct Loops", f"{tel.get('react_iterations', 0)}")
+                                met4.metric("Tokens (In/Out)", f"{tel.get('prompt_tokens', 0)} / {tel.get('completion_tokens', 0)}")
 
                 if prompt := st.chat_input("Ask an architectural question..."):
                     st.session_state.messages.append({
@@ -425,13 +493,14 @@ def main():
 
                     with st.chat_message("assistant"):
                         with st.spinner("Analyzing codebase..."):
+                            # 1. Extract the payload including our new telemetry dictionary
                             payload = agent.ask(prompt, repo_filter=repo_filter)
                             raw_answer = payload["answer"]
                             references = payload["references"]
+                            telemetry = payload.get("telemetry", {}) # Retrieve telemetry
 
                             mapped_answer = raw_answer
                             current_mapping = {}
-                            
                             r_counter = 1
                             num_counter = 1
                             
@@ -441,13 +510,9 @@ def main():
                             for key in sorted_keys:
                                 if key in mapped_answer:
                                     is_readme = "README" in key.upper()
-                                    
-                                    if is_readme:
-                                        marker_text = f"[R{r_counter}]" if total_readmes > 1 else "[R]"
-                                        r_counter += 1
-                                    else:
-                                        marker_text = f"[{num_counter}]"
-                                        num_counter += 1
+                                    marker_text = f"[R{r_counter}]" if total_readmes > 1 else "[R]" if is_readme else f"[{num_counter}]"
+                                    if is_readme: r_counter += 1
+                                    else: num_counter += 1
 
                                     markdown_marker = f"`{marker_text}`"
                                     mapped_answer = mapped_answer.replace(key, markdown_marker)
@@ -456,12 +521,26 @@ def main():
                             st.session_state.citation_mapping = current_mapping
                             st.session_state.latest_references = references
 
+                            # 2. Render the primary answer
                             st.markdown(mapped_answer)
+                            
+                            # 3. RENDER THE TELEMETRY DASHBOARD
+                            # 3. RENDER THE TELEMETRY DASHBOARD
+                            if telemetry:
+                                with st.expander("Performance Telemetry"):
+                                    met1, met2, met3, met4 = st.columns(4)
+                                    met1.metric("Total Latency", f"{telemetry['total_latency_sec']}s")
+                                    met2.metric("Retrieval (Graph+Vector)", f"{telemetry['retrieval_latency_sec']}s")
+                                    met3.metric("ReAct Iterations", f"{telemetry['react_iterations']}")
+                                    met4.metric("Tokens (In / Out)", f"{telemetry['prompt_tokens']} / {telemetry['completion_tokens']}")
+
+                            # 4. Save to session state
                             st.session_state.messages.append({
                                 "role": "assistant",
                                 "content": mapped_answer,
                                 "citations": current_mapping,
-                                "references": references
+                                "references": references,
+                                "telemetry": telemetry # Save telemetry history
                             })
 
                             st.rerun() 
