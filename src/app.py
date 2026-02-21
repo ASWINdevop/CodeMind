@@ -50,9 +50,9 @@ st.markdown("""
             overflow-y: visible !important;
         }
         /* ===== STATIC CODE VIEWER PANEL ===== */
-/* RIGHT COLUMN - STATIC CODE VIEWER PANEL */
-[data-testid="stColumn"]:nth-child(2) 
-[data-testid="stVerticalBlockBorderWrapper"] {
+    /* RIGHT COLUMN - STATIC CODE VIEWER PANEL */
+    [data-testid="stColumn"]:nth-child(2) 
+    [data-testid="stVerticalBlockBorderWrapper"] {
 
     height: 75vh;
     max-height: 75vh;
@@ -71,6 +71,8 @@ st.markdown("""
     border: 2px solid rgba(59,130,246,0.3);
     box-shadow: 0 12px 40px rgba(31,38,135,0.12);
 }
+
+
 
 
 /* Make chat area scrollable too */
@@ -242,6 +244,7 @@ st.markdown("""
             background-color: transparent !important;
         }
 
+        
         /* Chat Messages */
         [data-testid="stChatMessage"] {
             background: rgba(255, 255, 255, 0.5) !important;
@@ -277,6 +280,7 @@ st.markdown("""
             backdrop-filter: blur(10px) !important;
             overflow: hidden !important;
         }
+    
     </style>
 """, unsafe_allow_html=True)
 
@@ -332,7 +336,8 @@ def main():
         available_cloned_repos = [d for d in os.listdir(REPOS_DIR) if os.path.isdir(os.path.join(REPOS_DIR, d))] if os.path.exists(REPOS_DIR) else []
         selected_target = st.selectbox("Target Context", ["All Repositories"] + available_cloned_repos)
         repo_filter = None if selected_target == "All Repositories" else selected_target
-
+        st.markdown("<br>", unsafe_allow_html=True)
+        enable_self_healing = st.checkbox("Enable Self-Healing Agent", value=False, help="Runs a strict secondary QA loop to prevent hallucinations. High precision, but doubles token burn and latency.")
         st.divider()
 
         st.subheader("Citation Index")
@@ -469,7 +474,7 @@ def main():
                             unsafe_allow_html=True
                         )
 
-                        st.markdown(msg["content"])
+                        st.markdown(msg["content"], unsafe_allow_html=True)
                         
                         # NEW: PERSISTENT TELEMETRY RENDERER
                         # NEW: PERSISTENT TELEMETRY RENDERER
@@ -480,7 +485,7 @@ def main():
                                 met1.metric("Total Latency", f"{tel.get('total_latency_sec', 0)}s")
                                 met2.metric("Retrieval", f"{tel.get('retrieval_latency_sec', 0)}s")
                                 met3.metric("ReAct Loops", f"{tel.get('react_iterations', 0)}")
-                                met4.metric("Tokens (In/Out)", f"{tel.get('prompt_tokens', 0)} / {tel.get('completion_tokens', 0)}")
+                                met4.metric("Tokens (In+Out)", f"{tel.get('prompt_tokens', 0)} + {tel.get('completion_tokens', 0)}")
 
                 if prompt := st.chat_input("Ask an architectural question..."):
                     st.session_state.messages.append({
@@ -494,10 +499,12 @@ def main():
                     with st.chat_message("assistant"):
                         with st.spinner("Analyzing codebase..."):
                             # 1. Extract the payload including our new telemetry dictionary
-                            payload = agent.ask(prompt, repo_filter=repo_filter)
+                            # 1. Extract the payload including our new telemetry dictionary
+                            payload = agent.ask(prompt, repo_filter=repo_filter, use_self_healing=enable_self_healing)
                             raw_answer = payload["answer"]
                             references = payload["references"]
-                            telemetry = payload.get("telemetry", {}) # Retrieve telemetry
+                            telemetry = payload.get("telemetry", {}) 
+                            cache_status = payload.get("cache_status") # Extract the new flag
 
                             mapped_answer = raw_answer
                             current_mapping = {}
@@ -521,10 +528,17 @@ def main():
                             st.session_state.citation_mapping = current_mapping
                             st.session_state.latest_references = references
 
-                            # 2. Render the primary answer
-                            st.markdown(mapped_answer)
+                            # --- NEW: INJECT GLASSMORPHISM CACHE BADGES ---
+                            if cache_status == "healed":
+                                badge_html = '<div style="display:inline-block; background:rgba(16,185,129,0.15); color:#047857; border:1px solid rgba(16,185,129,0.4); padding:4px 12px; border-radius:8px; font-size:0.75rem; font-weight:700; margin-bottom:12px;">🏥 CACHED : HEALED</div><br>'
+                                mapped_answer = badge_html + mapped_answer
+                            elif cache_status == "standard":
+                                badge_html = '<div style="display:inline-block; background:rgba(99,102,241,0.15); color:#4338ca; border:1px solid rgba(99,102,241,0.4); padding:4px 12px; border-radius:8px; font-size:0.75rem; font-weight:700; margin-bottom:12px;">⚡ CACHED : STANDARD</div><br>'
+                                mapped_answer = badge_html + mapped_answer
+
+                            # 2. Render the primary answer (MUST allow HTML for the badge to draw)
+                            st.markdown(mapped_answer, unsafe_allow_html=True)
                             
-                            # 3. RENDER THE TELEMETRY DASHBOARD
                             # 3. RENDER THE TELEMETRY DASHBOARD
                             if telemetry:
                                 with st.expander("Performance Telemetry"):
