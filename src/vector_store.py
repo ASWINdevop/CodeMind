@@ -102,16 +102,63 @@ class CodeVectorStore:
         
         print(f"Successfully vectorized and stored {total_added} functions in ChromaDB.")
 
-    def search(self, query: str, n_results: int = 3, repo_filter: str = None):
-        """Searches the vector database, optionally filtering by repository."""
+    def search(self, query: str, n_results: int = 5, repo_filter: str = None, max_initial_k: int = 20, max_char_budget: int = 25000, **kwargs):
+        """
+        Executes an adaptive k-retrieval while maintaining backwards compatibility 
+        with the native ChromaDB dictionary return format.
+        """
         where_clause = {"repo": repo_filter} if repo_filter else None
         
-        results = self.collection.query(
+        # 1. Over-fetch the initial candidate pool (ignoring the legacy n_results limit)
+        raw_results = self.collection.query(
             query_texts=[query],
-            n_results=n_results,
+            n_results=max_initial_k,
             where=where_clause
         )
-        return results
+        
+        if not raw_results['ids'] or not raw_results['ids'][0]:
+            return {'ids': [[]], 'documents': [[]], 'distances': [[]]}
+
+        ids = raw_results['ids'][0]
+        documents = raw_results['documents'][0]
+        distances = raw_results['distances'][0]
+        
+        final_ids = []
+        final_docs = []
+        final_dists = []
+        
+        current_budget = 0
+        baseline_distance = distances[0] 
+
+        # 2. The Dynamic Optimization Funnel
+        for i in range(len(distances)):
+            current_id = ids[i]
+            current_doc = documents[i]
+            current_distance = distances[i]
+            
+            # RULE A: The Distance Cliff (Entropy Filter)
+            distance_delta = current_distance - baseline_distance
+            if i > 0 and distance_delta > 0.45: 
+                print(f"[Adaptive Optimization] Cutoff reached at k={i} due to semantic cliff (Delta: {distance_delta:.2f})")
+                break
+                
+            # RULE B: The Context Budget (Token Filter)
+            doc_len = len(current_doc)
+            if current_budget + doc_len > max_char_budget:
+                print(f"[Adaptive Optimization] Cutoff reached at k={i} due to token budget limits.")
+                break
+                
+            current_budget += doc_len
+            final_ids.append(current_id)
+            final_docs.append(current_doc)
+            final_dists.append(current_distance)
+            
+        # 3. Return the exact structure rag.py expects
+        return {
+            'ids': [final_ids],
+            'documents': [final_docs],
+            'distances': [final_dists]
+        }
 
 if __name__ == "__main__":
     store = CodeVectorStore()
