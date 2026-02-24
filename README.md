@@ -92,21 +92,23 @@ Docker Compose will automatically bridge port 8501 and mount your physical hard 
 ###### 4. Access the Application
 
 Navigate your browser strictly to:
-```http://localhost:8501```
+```
+http://localhost:8501
+```
 
 ##### 📊 Usage Guide & Telemetry
 
-**Ingestion**: Use the left sidebar to fetch and ingest a GitHub repository. Wait for the Knowledge Graph and Vector Index to compile.
+>*Ingestion*: Use the left sidebar to fetch and ingest a GitHub repository. Wait for the Knowledge Graph and Vector Index to compile.
 
-**Querying**: Ask architectural questions in the main chat interface.
+>*Querying*: Ask architectural questions in the main chat interface.
 
-**Toggle Self-Healing**: Use the UI toggle to enable the Adversarial Evaluator. This increases latency (~40s) but guarantees zero hallucinations.
+>*Toggle Self-Healing*: Use the UI toggle to enable the Adversarial Evaluator. This increases latency (~40s) but guarantees zero hallucinations.
 
 **Interpreting Cache Badges:**
 
-⚡ CACHED : STANDARD: A 0-second response from a standard, non-evaluated query.
+>⚡ CACHED : STANDARD: A 0-second response from a standard, non-evaluated query.
 
-🏥 CACHED : HEALED: A 0-second response from a strictly evaluated, hallucination-free reasoning chain.
+>🏥 CACHED : HEALED: A 0-second response from a strictly evaluated, hallucination-free reasoning chain.
 
 📁 Project Structure
 ```
