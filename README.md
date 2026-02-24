@@ -110,13 +110,14 @@ http://localhost:8501
 
 >🏥 CACHED : HEALED: A 0-second response from a strictly evaluated, hallucination-free reasoning chain.
 
-📁 Project Structure
-```
+#### 📁 Project Structure
+
+``` 
 CODEMIND/
 ├── data/                  # Stateful volume mounts (Ignored by Git)
 │   ├── chroma/            # Vector embeddings database
 │   ├── graph/             # NetworkX JSON topology
-├── repos/             # Cloned target codebases
+├── repos/                 # Cloned target codebases
 ├── src/                   # Core Application Source
 │   ├── app.py             # Streamlit UI & CSS overrides
 │   ├── rag.py             # ReAct Loop, Caching & Gemini Integration
