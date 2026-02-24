@@ -104,12 +104,12 @@ Navigate your browser strictly to:
 
 **Interpreting Cache Badges:**
 
-⚡ CACHED : STANDARD (Indigo): A 0-second response from a standard, non-evaluated query.
+⚡ CACHED : STANDARD: A 0-second response from a standard, non-evaluated query.
 
-🏥 CACHED : HEALED (Emerald): A 0-second response from a strictly evaluated, hallucination-free reasoning chain.
+🏥 CACHED : HEALED: A 0-second response from a strictly evaluated, hallucination-free reasoning chain.
 
 📁 Project Structure
-
+```
 CODEMIND/
 ├── data/                  # Stateful volume mounts (Ignored by Git)
 │   ├── chroma/            # Vector embeddings database
@@ -130,3 +130,4 @@ CODEMIND/
 ├── docker-compose.yml     # Volume and port controller
 ├── Dockerfile             # 3.38GB optimized Python 3.11-slim image
 └── requirements.txt       # Version-locked dependencies
+```
