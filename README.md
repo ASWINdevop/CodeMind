@@ -72,7 +72,7 @@ CodeMind is designed to run in a mathematically isolated Linux environment using
 
     Clone the repository and create a .env file in the root directory:
 ```
-git clone <your-repo-url>
+git clone <https://github.com/ASWINdevop/CodeMind>
 cd CODEMIND
 echo "GOOGLE_API_KEY=your_gemini_api_key_here" > .env
 ```
